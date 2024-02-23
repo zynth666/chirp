@@ -4,14 +4,13 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { RouterOutputs, api } from "~/utils/api";
 import Image from "next/image";
+import { LoadingPage } from "~/components/loading";
 
 dayjs.extend(relativeTime);
 
 const CreatePostWizard = () => {
   const { user } = useUser();
   if (!user) return null;
-
-  console.log(user);
 
   return (
     <div className="flex w-full gap-3">
@@ -54,10 +53,25 @@ const PostView = (props: PostWithUser) => {
   );
 };
 
-export default function Home() {
-  const { data, isLoading } = api.post.getAll.useQuery();
-  if (isLoading) return <div>Loading...</div>;
+const Feed = () => {
+  const { data, isLoading: postsLoading } = api.post.getAll.useQuery();
+
+  if (postsLoading) return <LoadingPage />;
+
   if (!data) return <div>Something went wrong.</div>;
+
+  return (
+    <div className="flex flex-col">
+      {data?.map((fullPost) => (
+        <PostView {...fullPost} key={fullPost.post.id} />
+      ))}
+    </div>
+  );
+};
+
+export default function Home() {
+  // start fetching ASAP
+  api.post.getAll.useQuery();
 
   return (
     <>
@@ -71,11 +85,7 @@ export default function Home() {
           <div className="flex border-b border-slate-400 p-4">
             <CreatePostWizard />
           </div>
-          <div className="flex flex-col">
-            {data?.map((fullPost) => (
-              <PostView {...fullPost} key={fullPost.post.id} />
-            ))}
-          </div>
+          <Feed />
         </div>
       </main>
     </>
