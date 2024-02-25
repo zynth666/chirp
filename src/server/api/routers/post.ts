@@ -3,7 +3,11 @@ import type { User } from "@clerk/nextjs/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  privateProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 
 const filterUserForClient = (user: User) => {
   return {
@@ -14,29 +18,26 @@ const filterUserForClient = (user: User) => {
 };
 
 export const postRouter = createTRPCRouter({
-  hello: publicProcedure
-    .input(z.object({ text: z.string() }))
-    .query(({ input }) => {
-      return {
-        greeting: `Hello ${input.text}`,
-      };
-    }),
-
-  /* create: publicProcedure
-    .input(z.object({ content: z.string().min(1) }))
+  create: privateProcedure
+    .input(z.object({ content: z.string().emoji().min(1).max(255) }))
     .mutation(async ({ ctx, input }) => {
-      // simulate a slow db call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const authorId = ctx.userId;
 
-      return ctx.db.post.create({
+      const post = await ctx.db.post.create({
         data: {
+          authorId,
           content: input.content,
         },
       });
-    }), */
+
+      return post;
+    }),
 
   getAll: publicProcedure.query(async ({ ctx }) => {
-    const posts = await ctx.db.post.findMany({ take: 100 });
+    const posts = await ctx.db.post.findMany({
+      take: 100,
+      orderBy: [{ createdAt: "desc" }],
+    });
 
     const users = await clerkClient.users.getUserList({
       userId: posts.map((post) => post.authorId),
@@ -45,10 +46,8 @@ export const postRouter = createTRPCRouter({
 
     const filteredUsers = users.map(filterUserForClient);
 
-    console.log(filteredUsers);
-
     return posts.map((post) => {
-      const author = users.find((user) => user.id === post.authorId);
+      const author = filteredUsers.find((user) => user.id === post.authorId);
 
       if (!author || !author.username)
         throw new TRPCError({
